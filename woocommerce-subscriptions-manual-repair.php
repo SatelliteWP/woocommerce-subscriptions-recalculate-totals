@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name: WooCommerce Subscriptions - Recalculate subscription totals
- * Plugin URI: https://github.com/Prospress/woocommerce-subscriptions-recalculate-totals
+ * Plugin URI: https://github.com/SatelliteWP/woocommerce-subscriptions-recalculate-totals
  * Description: In some cases, if the tax settings change after some subscripitons have been created, their totals need to be recalculated in order to include the proper taxes. This plugin recalculates all the subscripitons totals.
  * Author: Prospress Inc.
- * Version: 1.0.1
+ * Version: 1.1
  * Author URI: http://prospress.com
  *
- * GitHub Plugin URI: Prospress/woocommerce-subscriptions-recalculate-totals
+ * GitHub Plugin URI: SatelliteWP/woocommerce-subscriptions-recalculate-totals
  * GitHub Branch: master
  *
  * Copyright 2017 Prospress, Inc.  (email : freedoms@prospress.com)
@@ -45,7 +45,6 @@ function wcs_recalculate_totals() {
 		return;
 	}
 
-	$payment_gateways       = WC()->payment_gateways->payment_gateways();
 	$checked_subscriptions  = get_option( 'wcs_subscriptions_with_totals_updated', array() );
 	$subscriptions_to_check = get_posts( array(
 		'fields'         => 'ids',
@@ -76,14 +75,13 @@ function wcs_recalculate_totals() {
 		
 		if ( $subscription ) {
 			
-			$calc_total = $subscription->calculate_totals();
-			
-			if(isset($_GET['readd'])){
+			if ( isset( $_GET['readd'] ) ) {
+				
 				// Backup line items (product_id => quantity)
 				foreach ( $subscription->get_items() as $item_id => $item ) {
 					$qtty = $item['quantity'];
 					$product_id = $item['product_id'];
-					if(isset($item['variation_id']) && $item['variation_id']!=''){
+					if ( isset( $item['variation_id']) && $item['variation_id'] != '' ) {
 						$product_id = $item['variation_id'];
 					}
 					$products_data[$product_id] = $qtty;
@@ -91,27 +89,30 @@ function wcs_recalculate_totals() {
 				$logger->add( 'wcs-recalculate-totals', '* Saved line items ' . var_export( $products_data, true ) );
 				
 				// Delete all order items
-				$subscription->remove_order_items('line_item');
+				$subscription->remove_order_items( 'line_item' );
 				$logger->add( 'wcs-recalculate-totals', '* Removed order items' );
 				
 				// Add the saved order items
-				foreach($products_data as $product_id => $qty) {
-			        if($qty > 0) {
-			            $product = wc_get_product($product_id);
-			            $subscription->add_product($product, $qty);
+				foreach ( $products_data as $product_id => $qty ) {
+			        if ( $qty > 0 ) {
+			            $product = wc_get_product( $product_id );
+			            $subscription->add_product( $product, $qty );
 			            $logger->add( 'wcs-recalculate-totals', "* Added $qty units of product #$product_id" );
 			        }
 			    }
 			    	
-			    // Update totals and add an order note
+			    // Update taxes and totals
 				$subscription->update_taxes();
 				$calc_total = $subscription->calculate_totals();
-				$subscription->save();
-				$order->add_order_note("Order totals recalculated automatically (woocommerce-subscriptions-recalculate-totals)");
+				
+				// Add an order note
+				$order->add_order_note( "Order totals recalculated automatically (woocommerce-subscriptions-recalculate-totals)" );
 				$logger->add( 'wcs-recalculate-totals', "* Recalculated totals" );
-			
 			}
-		
+			else {
+				// Update totals
+				$calc_total = $subscription->calculate_totals();
+			}
 		}
 
 		$checked_subscriptions[] = $subscription_id;
@@ -142,7 +143,7 @@ function general_admin_notice(){
 		),
 	) );
     
-    if ( $checked_subscriptions!='' && empty($subscriptions_to_check) ) {
+    if ( $checked_subscriptions != '' && empty( $subscriptions_to_check ) ) {
          echo '<div class="notice notice-success is-dismissible">
              <p><b>All subscriptions have been recalculated! :)</b></p>
              <p>If you want to recalculate all your subscriptions again, you will need to use <mark style="background: #e5e5e5;">"reset-updated-subs-option=true"</mark> parameter</p>
@@ -153,4 +154,4 @@ function general_admin_notice(){
     $logger->add( 'wcs-recalculate-totals', '******** All subscriptions have been recalculated! ********' );
     
 }
-add_action('admin_notices', 'general_admin_notice');
+add_action( 'admin_notices', 'general_admin_notice' );
